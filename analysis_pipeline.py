@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 from datetime import datetime
-import config # <-- Mengimpor variabel-variabel dari config.py
+import config
 
 def generate_report_penjualan_per_kategori(p_source_engine, p_target_engine, show_plot=True):
     """
@@ -31,7 +31,9 @@ def generate_report_penjualan_per_kategori(p_source_engine, p_target_engine, sho
         barplot.xaxis.set_major_formatter(lambda x, pos: f'{x/1e6:.0f} Jt')
         plt.tight_layout()
         
-        image_path = os.path.join(config.OUTPUT_PATH, 'penjualan_per_kategori.png')
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        nama_file_baru = f"{timestamp_str}_penjualan_per_kategori.png"
+        image_path = os.path.join(config.OUTPUT_PATH, nama_file_baru)
         plt.savefig(image_path, dpi=300, bbox_inches='tight')
         print(f"   -> ✅ Grafik disimpan di: {image_path}")
         if show_plot: plt.show()
@@ -64,7 +66,9 @@ def generate_report_tren_bulanan(p_source_engine, p_target_engine, show_plot=Tru
         plt.xticks(rotation=45); lineplot.yaxis.set_major_formatter(lambda x, pos: f'{x/1e6:.1f} Jt')
         plt.tight_layout()
         
-        image_path = os.path.join(config.OUTPUT_PATH, 'tren_penjualan_bulanan.png')
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        nama_file_baru = f"{timestamp_str}_report_tren_bulanan.png"
+        image_path = os.path.join(config.OUTPUT_PATH, nama_file_baru)
         plt.savefig(image_path, dpi=300, bbox_inches='tight')
         print(f"   -> ✅ Grafik disimpan di: {image_path}")
         if show_plot: plt.show()
@@ -100,7 +104,9 @@ def generate_report_top_10_pelanggan(p_source_engine, p_target_engine, show_plot
         barplot.xaxis.set_major_formatter(lambda x, pos: f'{(x/1e3):.0f} Rb')
         plt.tight_layout()
         
-        image_path = os.path.join(config.OUTPUT_PATH, 'top_10_pelanggan.png')
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        nama_file_baru = f"{timestamp_str}_report_top_10_pelanggan.png"
+        image_path = os.path.join(config.OUTPUT_PATH, nama_file_baru)
         plt.savefig(image_path, dpi=300, bbox_inches='tight')
         print(f"   -> ✅ Grafik disimpan di: {image_path}")
         if show_plot: plt.show()
