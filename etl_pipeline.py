@@ -40,8 +40,8 @@ def sortir_file_mentah():
         ext = ext.lower()
 
         if ext in paths:
-            shutil.copy(file_path, os.path.join(paths[ext], filename))
-            print(f"  -> File '{filename}' disalin ke '{paths[ext]}'")
+            shutil.move(file_path, os.path.join(paths[ext], filename))
+            print(f"  -> File '{filename}' dipindahkan ke '{paths[ext]}'")
         else:
             print(f"  -> File '{filename}' tidak dikenali tipenya, dilewati.")
             
