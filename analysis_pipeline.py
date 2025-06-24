@@ -5,6 +5,7 @@ import seaborn as sns
 import os
 from datetime import datetime
 import re
+from wordcloud import WordCloud
 import config
 
 def generate_report_penjualan_per_kategori(p_source_engine, p_target_engine, show_plot=True):
@@ -229,6 +230,68 @@ def generate_report_from_pdf(p_source_engine, p_target_engine):
         print(f"   -> ❌ GAGAL! Error: {e}")
         return None
 
+def generate_report_word_cloud(p_source_engine, show_plot=True):
+    """
+    Membuat laporan Word Cloud dari semua teks tweet yang ada di staging,
+    dan menyimpan hasilnya sebagai gambar.
+    """
+    print("\n--- 📞 Laporan 5: Word Cloud dari Teks Tweet ---")
+    try:
+        # E: Baca semua isi tweet dari tabel staging di _st
+        print("   -> [E] Membaca semua teks tweet dari stg_analisis_sentimen...")
+        query = 'SELECT isi_tweet FROM stg_analisis_sentimen'
+        df_tweets = pd.read_sql_query(query, p_source_engine)
+
+        if df_tweets.empty:
+            print("   -> ⚠️ Tidak ada data tweet untuk dibuatkan Word Cloud.")
+            return None
+
+        # T: Gabungkan semua teks menjadi satu paragraf raksasa
+        print("   -> [T] Menggabungkan dan membersihkan teks...")
+        all_text = ' '.join(df_tweets['isi_tweet'])
+
+        # Definisikan 'stop words' (kata-kata umum yang mau kita abaikan)
+        # Kita bisa tambahkan kata lain di sini jika perlu
+        stopwords = set([
+            "di", "dan", "yang", "ini", "itu", "ke", "dari", "buat", "aja", "gak", "ga", "nggak", 
+            "nya", "sih", "deh", "kok", "mah", "banget", "udah", "ada", "bisa", "jadi", "sama", 
+            "tapi", "juga", "gue", "loh", "satu", "soal", "buat", "yg", "aja", "adventureworks"
+        ])
+
+        # Buat objek WordCloud
+        wordcloud = WordCloud(
+            width=1200, 
+            height=600, 
+            background_color='white',
+            stopwords=stopwords,
+            colormap='cividis', # Palet warna lain biar beda
+            min_font_size=10,
+            collocations=False # Menghindari kata ganda seperti "sepeda gunung" dihitung aneh
+        ).generate(all_text)
+        print("   -> ✅ Word Cloud berhasil dibuat.")
+
+        # L: Simpan gambar
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        nama_file_baru = f"{timestamp_str}_word_cloud_tweets.png"
+        image_path = os.path.join(config.OUTPUT_PATH, nama_file_baru)
+        
+        wordcloud.to_file(image_path)
+        print(f"   -> ✅ Grafik disimpan di: {image_path}")
+
+        # Visualisasi
+        if show_plot:
+            plt.figure(figsize=(15, 8))
+            plt.imshow(wordcloud, interpolation='bilinear')
+            plt.axis("off")
+            plt.tight_layout(pad=0)
+            plt.show()
+        
+        return image_path
+
+    except Exception as e:
+        print(f"   -> ❌ GAGAL! Error: {e}")
+        return None
+
 # --- FUNGSI UTAMA UNTUK MENJALANKAN SEMUA ANALISIS ---
 def run_all_analysis(p_source_engine, p_target_engine):
     """Fungsi untuk menjalankan semua analisis dan membuat laporan."""
@@ -239,5 +302,6 @@ def run_all_analysis(p_source_engine, p_target_engine):
     generate_report_top_10_pelanggan(p_source_engine, p_target_engine, show_plot=False)
     generate_report_sentimen_vs_penjualan(p_source_engine, p_target_engine, show_plot=False)
     generate_report_from_pdf(p_source_engine, p_target_engine)
+    generate_report_word_cloud(p_source_engine, show_plot=False)
     
     print("\n\n===== PIPELINE ANALISIS & REPORTING SELESAI! =====")
