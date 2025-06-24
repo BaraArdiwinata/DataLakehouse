@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 from datetime import datetime
+import re
 import config
 
 def generate_report_penjualan_per_kategori(p_source_engine, p_target_engine, show_plot=True):
@@ -114,6 +115,120 @@ def generate_report_top_10_pelanggan(p_source_engine, p_target_engine, show_plot
     except Exception as e:
         print(f"   -> ❌ GAGAL! Error: {e}")
 
+def generate_report_sentimen_vs_penjualan(p_source_engine, p_target_engine, show_plot=True):
+    """
+    Membuat laporan gabungan sentimen vs total belanja, menyimpan hasil ke Data Mart,
+    dan membuat visualisasi scatter plot.
+    """
+    print("\n--- 📞 Laporan 4: Korelasi Sentimen vs Penjualan ---")
+    try:
+        query = """
+            WITH
+                BelanjaPelanggan AS (
+                    SELECT p.id_pelanggan, p.nama_lengkap, SUM(fp.total_harga) AS total_belanja
+                    FROM "Fakta_Penjualan" fp
+                    JOIN "Dim_Pelanggan" p ON fp.pelanggan_key = p.pelanggan_key
+                    WHERE p.status_sekarang = TRUE
+                    GROUP BY p.id_pelanggan, p.nama_lengkap
+                ),
+                SentimenPelanggan AS (
+                    SELECT id_pelanggan, polarity, isi_tweet
+                    FROM stg_analisis_sentimen
+                )
+            SELECT bp.nama_lengkap, sp.polarity, bp.total_belanja, sp.isi_tweet
+            FROM SentimenPelanggan sp
+            JOIN BelanjaPelanggan bp ON sp.id_pelanggan = bp.id_pelanggan;
+        """
+        df_report = pd.read_sql_query(query, p_source_engine)
+        
+        df_report['tgl_laporan'] = datetime.now()
+        df_report.to_sql('rpt_sentimen_vs_penjualan', p_target_engine, if_exists='append', index=False)
+        print("   -> ✅ Hasil analisis gabungan berhasil disimpan ke Data Mart.")
+
+        plt.figure(figsize=(12, 8))
+        sns.scatterplot(
+            data=df_report,
+            x='polarity',
+            y='total_belanja',
+            size='total_belanja',
+            sizes=(50, 1000),
+            alpha=0.7,
+            hue='polarity',
+            palette='coolwarm_r'
+        )
+        plt.title('Korelasi Sentimen Pelanggan vs Total Belanja', fontsize=18, pad=20)
+        plt.xlabel('Polarity Sentimen (Negatif < 0 < Positif)', fontsize=12)
+        plt.ylabel('Total Belanja', fontsize=12)
+        plt.axvline(0, color='grey', linestyle='--') # Tambah garis netral
+        plt.tight_layout()
+        
+        image_path = os.path.join(config.OUTPUT_PATH, 'sentimen_vs_penjualan.png')
+        plt.savefig(image_path, dpi=300, bbox_inches='tight')
+        print(f"   -> ✅ Grafik disimpan di: {image_path}")
+        if show_plot: plt.show()
+        
+        return df_report, image_path
+    except Exception as e:
+        print(f"   -> ❌ GAGAL! Error: {e}")
+        return None, None
+
+def generate_report_from_pdf(p_source_engine, p_target_engine):
+    """
+    Membaca teks mentah dari staging (_st), melakukan ekstraksi informasi
+    dengan Regex yang lebih robust, dan menyimpan hasilnya ke Data Mart (_wh).
+    """
+    print("\n--- 📞 Laporan dari Dokumen PDF (Versi Upgrade) ---")
+    try:
+        # E: Baca teks mentah dari staging di _st
+        print("   -> [E] Membaca teks laporan dari stg_dokumen_pdf...")
+        df_staged_pdf = pd.read_sql_table('stg_dokumen_pdf', p_source_engine)
+        
+        hasil_laporan = []
+        # T: Lakukan ekstraksi informasi dengan Regex untuk setiap dokumen
+        print("   -> [T] Melakukan ekstraksi informasi dengan Regex yang lebih pintar...")
+        for index, row in df_staged_pdf.iterrows():
+            text = row['isi_teks']
+            filename = row['nama_file']
+            
+            # --- POLA REGEX YANG DI-UPGRADE ---
+            # Pola Periode: \s* mentolerir spasi/baris baru yang banyak
+            periode = re.search(r"Kuartal\s*(\d)\s*(\d{4})", text)
+            periode_str = f"Q{periode.group(1)} {periode.group(2)}" if periode else None
+
+            # Pola Pendapatan: sama, sudah cukup robust
+            pendapatan = re.search(r"\$(\d+\.?\d*)\s*juta", text)
+            pendapatan_float = float(pendapatan.group(1)) if pendapatan else None
+
+            # Pola Pertumbuhan: cari saja angka yang diikuti tanda %
+            pertumbuhan = re.search(r"(\d+)\s*%", text)
+            pertumbuhan_int = int(pertumbuhan.group(1)) if pertumbuhan else None
+
+            # Kumpulkan hasil
+            hasil_laporan.append({
+                'nama_file': filename,
+                'periode_laporan': periode_str,
+                'total_pendapatan_juta': pendapatan_float,
+                'persentase_pertumbuhan': pertumbuhan_int,
+            })
+
+        df_report = pd.DataFrame(hasil_laporan)
+        df_report['tgl_laporan'] = datetime.now()
+
+        # L: Load hasil terstruktur ke Data Mart di _wh
+        target_table_name = 'rpt_kinerja_kuartalan'
+        print(f"   -> [L] Menyimpan hasil ekstraksi ke {target_table_name}...")
+        
+        # Kita pakai 'replace' agar setiap run hasilnya adalah yang terbaru dari script ini
+        df_report.to_sql(target_table_name, p_target_engine, if_exists='append', index=False)
+        print(f"   -> ✅ {len(df_report)} laporan kuartalan berhasil disimpan ke Data Mart.")
+        
+        # Tampilkan hasilnya di notebook untuk verifikasi
+        return df_report
+
+    except Exception as e:
+        print(f"   -> ❌ GAGAL! Error: {e}")
+        return None
+
 # --- FUNGSI UTAMA UNTUK MENJALANKAN SEMUA ANALISIS ---
 def run_all_analysis(p_source_engine, p_target_engine):
     """Fungsi untuk menjalankan semua analisis dan membuat laporan."""
@@ -122,5 +237,7 @@ def run_all_analysis(p_source_engine, p_target_engine):
     generate_report_penjualan_per_kategori(p_source_engine, p_target_engine, show_plot=False)
     generate_report_tren_bulanan(p_source_engine, p_target_engine, show_plot=False)
     generate_report_top_10_pelanggan(p_source_engine, p_target_engine, show_plot=False)
+    generate_report_sentimen_vs_penjualan(p_source_engine, p_target_engine, show_plot=False)
+    generate_report_from_pdf(p_source_engine, p_target_engine)
     
     print("\n\n===== PIPELINE ANALISIS & REPORTING SELESAI! =====")

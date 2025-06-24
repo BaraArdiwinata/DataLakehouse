@@ -291,7 +291,7 @@ def etl_fakta_penjualan(engine_st):
 def run_all_etl(engine_st):
     """Fungsi untuk menjalankan semua tugas ETL secara berurutan."""
     print("\n\n===== MEMULAI PIPELINE ETL LENGKAP =====")
-    # sortir_file_mentah() # Sesuaikan fungsi ini agar menggunakan path dari config
+    sortir_file_mentah() # Sesuaikan fungsi ini agar menggunakan path dari config
     reset_all_tables(engine_st)
     etl_dim_produk(engine_st)
     etl_dim_waktu(engine_st)
